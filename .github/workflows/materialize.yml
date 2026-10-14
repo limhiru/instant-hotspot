@@ -19,12 +19,14 @@ jobs:
           for name, encoded in json.loads(raw).items():
               path = pathlib.PurePosixPath(name)
               assert not path.is_absolute() and '..' not in path.parts and '.git' not in path.parts
+              if path.parts[0] == '.github':
+                  continue
               target = pathlib.Path(name)
               target.parent.mkdir(parents=True, exist_ok=True)
               target.write_bytes(base64.b64decode(encoded, validate=True))
           pathlib.Path('android/gradlew').chmod(0o755)
           PYCODE
-          git rm .hiru-source.json .github/workflows/materialize.yml
+          git rm .hiru-source.json
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add .
