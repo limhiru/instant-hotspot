@@ -19,6 +19,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Hiru"
         android:usesCleartextTraffic="false">
+        <meta-data
+            android:name="com.samsung.android.support.ongoing_activity"
+            android:value="true" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

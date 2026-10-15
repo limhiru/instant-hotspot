@@ -3,6 +3,7 @@ package com.hiru.instanthotspot.ble
 import android.app.*
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.os.Bundle
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -18,6 +19,7 @@ class ProviderService : Service() {
         manager.createNotificationChannel(NotificationChannel("waiting", "기기 요청 대기", NotificationManager.IMPORTANCE_LOW))
         RequestNotifications.createChannel(this)
         engine.onIncomingRequest = { name ->
+            showRequestActivity(name)
             val routine = (application as HotspotApplication).store.routineEnabled
             if (!RequestNotifications.post(this, name, routine) && routine) {
                 engine.message("루틴 연결에 필요한 요청 알림이 차단돼 있어요. 설정에서 알림을 허용하거나 핫스팟을 직접 켜 주세요.")
@@ -30,6 +32,23 @@ class ProviderService : Service() {
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         return NotificationCompat.Builder(this, channel).setSmallIcon(R.drawable.ic_lucide_radio)
             .setContentTitle(title).setContentText(content).setContentIntent(launch).setAutoCancel(channel == "requests")
+    }
+    private fun showRequestActivity(name: String) {
+        val now = System.currentTimeMillis()
+        val stop = PendingIntent.getService(this, 1, Intent(this, ProviderService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val liveInfo = Bundle().apply {
+            putInt("android.ongoingActivityNoti.style", 1)
+            putString("android.ongoingActivityNoti.primaryInfo", "핫스팟 요청")
+            putString("android.ongoingActivityNoti.secondaryInfo", "$name · 요청 후 경과 시간")
+            putString("android.ongoingActivityNoti.chipExpandedText", "핫스팟 요청 · $name")
+            putString("android.ongoingActivityNoti.nowbarPrimaryInfo", "핫스팟 요청")
+            putString("android.ongoingActivityNoti.nowbarSecondaryInfo", name)
+        }
+        val note = notification("waiting", "핫스팟 요청 · $name", "핫스팟 켜짐 여부는 루틴에서 확인해 주세요.")
+            .setWhen(now).setShowWhen(true).setUsesChronometer(true).setOngoing(true)
+            .setExtras(liveInfo).addAction(0, "대기 중지", stop).build()
+        getSystemService(NotificationManager::class.java).notify(101, note)
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) { stopSelf(); return START_NOT_STICKY }
