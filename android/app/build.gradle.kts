@@ -23,6 +23,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            // Installable preview builds; production releases need a persistent private key.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
