@@ -29,11 +29,15 @@ jobs:
       - name: Install Android SDK
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - name: Build, test and lint
-        run: ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --stacktrace
+        run: ./gradlew :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug :app:lintRelease --stacktrace
       - uses: actions/upload-artifact@v4
         with:
           name: hiru-instant-hotspot-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hiru-instant-hotspot-release
+          path: android/app/build/outputs/apk/release/app-release.apk
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -41,3 +45,4 @@ jobs:
           path: |
             android/app/build/reports/tests
             android/app/build/reports/lint-results-debug.html
+            android/app/build/reports/lint-results-release.html
