@@ -13,14 +13,16 @@
 - 저전력 광고와 알림이 표시되는 요청 대기 서비스
 - 기기 관리, 등록 해제, 코드·역할 변경
 
-**0.1 버전은 BLE 요청까지 구현되어 있습니다. 폰의 핫스팟 켜기와 태블릿의 Wi-Fi 연결은 시스템 설정에서 직접 진행합니다.**
+**0.1.2 버전은 삼성 루틴으로 핫스팟을 요청하고, One UI 7의 Live Notification/Now Bar 표시를 시험합니다.**
+폰의 앱 설정에서 '삼성 루틴 연결'을 켜고 안내된 루틴을 직접 만들어야 합니다. Shizuku나 ADB 상시 연결은 필요하지 않습니다.
+루틴이 없으면 핫스팟을 직접 켜야 하며, 태블릿의 Wi-Fi 연결은 시스템 설정에서 진행합니다.
 실제 인터넷 공유가 시작됐다고 가정하거나 가짜 연결 성공/데이터 사용량을 표시하지 않습니다.
 
 자세한 빌드·사용 방법과 실기기 확인표는 [Android 안내](docs/ANDROID.md), 인증 과정은 [BLE 프로토콜](docs/PROTOCOL.md)을 참고하세요.
 
 ```bash
 cd android
-./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+./gradlew :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug :app:lintRelease
 ```
 
 Swift + SwiftUI 기반 iOS 앱은 추후 별도 구현 예정입니다.

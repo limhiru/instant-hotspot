@@ -4,6 +4,8 @@ import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.net.ConnectivityManager
@@ -18,6 +20,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
 import com.hiru.instanthotspot.ble.ProviderService
+import com.hiru.instanthotspot.ble.RequestNotifications
+import com.hiru.instanthotspot.data.DeviceRole
 import com.hiru.instanthotspot.ui.HiruApp
 
 class MainActivity : ComponentActivity() {
@@ -92,6 +96,29 @@ class MainActivity : ComponentActivity() {
     fun request(address: String) = withBluetooth(true) { app.ble.connectAndRequest(address) }
     fun openHotspotSettings() = openSettings("android.settings.TETHER_SETTINGS", Settings.ACTION_WIRELESS_SETTINGS)
     fun openWifiSettings() = openSettings(Settings.ACTION_WIFI_SETTINGS)
+    fun copyRoutineKeyword() {
+        getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("루틴 키워드", RequestNotifications.ROUTINE_KEYWORD))
+        app.ble.message("루틴 키워드를 복사했어요.")
+    }
+    fun openRequestNotificationSettings() {
+        RequestNotifications.createChannel(this)
+        runCatching {
+            startActivity(Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                .putExtra(Settings.EXTRA_CHANNEL_ID, RequestNotifications.CHANNEL))
+        }.onFailure { openSettings(Settings.ACTION_SETTINGS) }
+    }
+    fun testRoutine() {
+        if (app.store.role != DeviceRole.PROVIDER || !app.store.routineEnabled) return
+        if (Build.VERSION.SDK_INT >= 33 && !hasPermission(Manifest.permission.POST_NOTIFICATIONS)) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            app.ble.message("알림을 허용한 뒤 테스트를 다시 눌러 주세요.")
+            return
+        }
+        val posted = RequestNotifications.post(this, "루틴 연결 테스트", routine = true)
+        app.ble.message(if (posted) "테스트 알림을 보냈어요. 폰의 핫스팟이 켜졌는지 확인해 주세요."
+            else "요청 알림이 차단돼 있어요. '요청 알림 설정'에서 허용해 주세요.")
+    }
     private fun openSettings(action: String, fallback: String = Settings.ACTION_SETTINGS) {
         runCatching { startActivity(Intent(action)) }.onFailure { runCatching { startActivity(Intent(fallback)) } }
     }

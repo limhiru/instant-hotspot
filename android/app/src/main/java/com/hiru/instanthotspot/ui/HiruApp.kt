@@ -28,6 +28,8 @@ import com.hiru.instanthotspot.MainActivity
 import com.hiru.instanthotspot.R
 import com.hiru.instanthotspot.ble.BleState
 import com.hiru.instanthotspot.ble.LinkStage
+import com.hiru.instanthotspot.ble.RequestNotifications
+import com.hiru.instanthotspot.BuildConfig
 import com.hiru.instanthotspot.core.PairingProtocol
 import com.hiru.instanthotspot.data.DeviceRole
 import com.hiru.instanthotspot.data.Peer
@@ -50,6 +52,7 @@ private enum class Page { WELCOME, ROLE, CODE, HOME, SEARCH }
     val peers = remember(state.revision) { store.peers() }
     var forget by remember { mutableStateOf<Peer?>(null) }
     var confirmReconfigure by remember { mutableStateOf(false) }
+    var routineEnabled by remember { mutableStateOf(store.routineEnabled) }
     BackHandler(enabled = page != Page.HOME && page != Page.WELCOME && !saving) {
         engine.stopScan()
         page = when (page) { Page.ROLE -> Page.WELCOME; Page.CODE -> Page.ROLE; else -> Page.HOME }
@@ -103,12 +106,17 @@ private enum class Page { WELCOME, ROLE, CODE, HOME, SEARCH }
                                 search = { page = Page.SEARCH; activity.scan() },
                                 hotspot = activity::openHotspotSettings, wifi = activity::openWifiSettings,
                                 dismissRequest = engine::clearRequest, disconnect = engine::disconnectClient,
-                                wifiInternet = activity.wifiInternet.value)
+                                wifiInternet = activity.wifiInternet.value, routineEnabled = routineEnabled)
                             1 -> DevicesScreen(peers, role, onAdd = {
                                 if (role == DeviceRole.PROVIDER) activity.startProvider(pairing = true)
                                 else { page = Page.SEARCH; activity.scan() }
                             }, onForget = { forget = it }, pairing = state.pairingUntil > 0)
                             2 -> SettingsScreen(role, onReconfigure = { confirmReconfigure = true },
+                                routineEnabled = routineEnabled, onRoutineChange = { enabled ->
+                                    store.routineEnabled = enabled; routineEnabled = enabled
+                                    if (!enabled) RequestNotifications.cancel(activity)
+                                }, copyKeyword = activity::copyRoutineKeyword, testRoutine = activity::testRoutine,
+                                notificationSettings = activity::openRequestNotificationSettings,
                                 openSettings = if (role == DeviceRole.PROVIDER) activity::openHotspotSettings else activity::openWifiSettings)
                         }
                     }
@@ -264,7 +272,7 @@ private enum class Page { WELCOME, ROLE, CODE, HOME, SEARCH }
 }
 @Composable private fun HomeScreen(role: DeviceRole, state: BleState, peers: List<Peer>, start: () -> Unit, stop: () -> Unit,
     pair: () -> Unit, search: () -> Unit, hotspot: () -> Unit, wifi: () -> Unit, dismissRequest: () -> Unit,
-    disconnect: () -> Unit, wifiInternet: Boolean) {
+    disconnect: () -> Unit, wifiInternet: Boolean, routineEnabled: Boolean = false) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         PageTitle(if (role == DeviceRole.PROVIDER) "인터넷 제공" else "인터넷 연결", "Hiru Instant Hotspot")
         if (state.advertising) Badge(containerColor = Pale, contentColor = Color(0xFF4B84C6)) { Text("대기 중", Modifier.padding(7.dp)) }
@@ -275,7 +283,8 @@ private enum class Page { WELCOME, ROLE, CODE, HOME, SEARCH }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Lucide(R.drawable.ic_lucide_bluetooth, tint = Sky); Text("연결 요청이 왔어요", fontWeight = FontWeight.Bold)
                 }
-                Text("$name\n핫스팟을 켜면 상대 기기가 Wi-Fi로 연결할 수 있어요.", color = Muted, fontSize = 14.sp, lineHeight = 23.sp)
+                Text(if (routineEnabled) "$name\n루틴용 알림을 요청했어요. 핫스팟이 켜지지 않았다면 설정을 확인해 주세요."
+                    else "$name\n핫스팟을 켜면 상대 기기가 Wi-Fi로 연결할 수 있어요.", color = Muted, fontSize = 14.sp, lineHeight = 23.sp)
                 SkyButton("핫스팟 설정 열기", hotspot, Modifier.fillMaxWidth())
                 TextButton(onClick = dismissRequest) { Text("요청 닫기") }
             }
@@ -299,7 +308,8 @@ private enum class Page { WELCOME, ROLE, CODE, HOME, SEARCH }
                         Lucide(R.drawable.ic_lucide_plus, tint = Sky); Spacer(Modifier.width(8.dp)); Text(if (state.pairingUntil > 0) "기기 등록 열림 · 2분" else "기기 등록")
                     }
                 }
-                QuietNote("요청을 받으면 폰에서 핫스팟을 켜 주세요.\n대기 알림을 누르면 이 화면으로 돌아올 수 있어요.", icon = R.drawable.ic_lucide_circle_help)
+                QuietNote(if (routineEnabled) "요청 알림을 받아 삼성 루틴이 핫스팟을 켜요.\n설정에서 루틴 연결을 먼저 테스트해 주세요."
+                    else "폰에서 핫스팟을 켜거나, 설정에서 삼성 루틴을 연결해 자동으로 켤 수 있어요.", icon = R.drawable.ic_lucide_circle_help)
             }
         })
     } else {
@@ -316,7 +326,7 @@ private enum class Page { WELCOME, ROLE, CODE, HOME, SEARCH }
                         LinkStage.ACTION_REQUIRED -> "폰에 요청을 보냈어요"
                         else -> "가까운 폰과 연결해요"
                     }, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-                    Text(if (waiting) "폰에서 핫스팟을 켠 후\n태블릿의 Wi-Fi 설정에서 연결해 주세요." else "같은 등록 코드를 사용하는 폰에\n안전하게 연결 요청을 보내요.", color = Muted, fontSize = 14.sp, lineHeight = 23.sp, textAlign = TextAlign.Center)
+                    Text(if (waiting) "폰의 루틴 또는 직접 조작으로 핫스팟이 켜지면\n태블릿의 Wi-Fi 설정에서 연결해 주세요." else "같은 등록 코드를 사용하는 폰에\n안전하게 연결 요청을 보내요.", color = Muted, fontSize = 14.sp, lineHeight = 23.sp, textAlign = TextAlign.Center)
                     if (busy) {
                         LinearProgressIndicator(Modifier.fillMaxWidth(), color = Sky, trackColor = Pale)
                         TextButton(onClick = disconnect) { Text("취소") }
@@ -354,7 +364,9 @@ private enum class Page { WELCOME, ROLE, CODE, HOME, SEARCH }
     }
     if (role == DeviceRole.PROVIDER) QuietNote("기기 등록을 누른 후 2분 안에 상대 기기에서 같은 코드를 입력하고 폰을 찾아 주세요.", icon = R.drawable.ic_lucide_circle_help)
 }
-@Composable private fun SettingsScreen(role: DeviceRole, onReconfigure: () -> Unit, openSettings: () -> Unit) {
+@Composable private fun SettingsScreen(role: DeviceRole, onReconfigure: () -> Unit, openSettings: () -> Unit,
+    routineEnabled: Boolean, onRoutineChange: (Boolean) -> Unit, copyKeyword: () -> Unit,
+    testRoutine: () -> Unit, notificationSettings: () -> Unit) {
     PageTitle("설정", "간편하게 연결하고, 필요한 때만 사용해요.")
     SoftCard(Modifier.fillMaxWidth()) {
         DeviceRow("현재 역할", if (role == DeviceRole.PROVIDER) "인터넷 제공" else "인터넷 연결", if (role == DeviceRole.PROVIDER) R.drawable.ic_lucide_smartphone else R.drawable.ic_lucide_tablet)
@@ -363,14 +375,34 @@ private enum class Page { WELCOME, ROLE, CODE, HOME, SEARCH }
         HorizontalDivider(color = Line)
         DeviceRow(if (role == DeviceRole.PROVIDER) "핫스팟 설정" else "Wi-Fi 설정", "기기의 시스템 설정 열기", R.drawable.ic_lucide_wifi, onClick = openSettings)
     }
+    if (role == DeviceRole.PROVIDER) SoftCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text("삼성 루틴 연결", fontWeight = FontWeight.SemiBold)
+                Text("BLE 요청을 받으면 자동으로 핫스팟 켜기", color = Muted, fontSize = 13.sp, lineHeight = 21.sp)
+            }
+            Switch(checked = routineEnabled, onCheckedChange = onRoutineChange)
+        }
+        Text("삼성 모드 및 루틴에서 아래 규칙을 한 번 만들어 주세요. 이 스위치만으로 루틴이 생성되지는 않아요.", color = Muted, fontSize = 14.sp, lineHeight = 23.sp)
+        HorizontalDivider(color = Line)
+        Text("1  설정 → 모드 및 루틴 → 루틴 → ＋\n2  알림을 받으면 → Hiru Hotspot\n3  특정 단어가 포함된 알림 → 아래 키워드\n4  동작 → 모바일 핫스팟 → 켜기", fontSize = 14.sp, lineHeight = 26.sp, color = Ink)
+        Text(RequestNotifications.ROUTINE_KEYWORD, color = Sky, fontWeight = FontWeight.SemiBold)
+        OutlinedButton(onClick = copyKeyword, modifier = Modifier.fillMaxWidth()) { Text("루틴 키워드 복사") }
+        if (routineEnabled) {
+            SkyButton("루틴 테스트 알림 보내기", testRoutine, Modifier.fillMaxWidth())
+            QuietNote("테스트를 누르면 설정한 루틴이 실제로 핫스팟을 켤 수 있어요. 알림 전송만으로 핫스팟 켜짐을 확인할 수는 없어요.", icon = R.drawable.ic_lucide_circle_alert)
+        }
+        TextButton(onClick = notificationSettings) { Text("요청 알림 설정") }
+        Text("Hiru의 알림과 '핫스팟 연결 요청' 알림을 허용해 주세요. 루틴에 필요한 알림 접근 권한도 삼성 설정에서 허용해야 해요. 메뉴는 기기·One UI 버전에 따라 다를 수 있어요.", color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
+    }
     SoftCard(Modifier.fillMaxWidth()) {
         Text("배터리를 위한 연결", fontWeight = FontWeight.SemiBold)
         Text("폰은 저전력 BLE 광고로 대기해요. 기기 검색은 최대 10초이며, 앱 화면을 벗어나면 중지해요. 요청을 보내고 응답을 받으면 BLE 연결을 종료해요.", color = Muted, fontSize = 14.sp, lineHeight = 23.sp)
         HorizontalDivider(color = Line)
         Text("현재 버전 안내", fontWeight = FontWeight.SemiBold)
-        Text("이 버전은 BLE 등록·인증·핫스팟 요청을 지원해요. 폰의 핫스팟 켜기와 태블릿의 Wi-Fi 연결은 시스템 설정에서 진행해 주세요.", color = Muted, fontSize = 14.sp, lineHeight = 23.sp)
+        Text("BLE 등록·인증·요청과 삼성 루틴용 알림을 지원해요. 핫스팟 켜기는 설정한 루틴이 실행하며, 루틴이 없으면 직접 켜야 해요. 태블릿 Wi-Fi 연결은 시스템 설정에서 진행해 주세요.", color = Muted, fontSize = 14.sp, lineHeight = 23.sp)
     }
-    Text("Hiru Instant Hotspot · 0.1.0\nIcons by Lucide · ISC License", color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
+    Text("Hiru Instant Hotspot · ${BuildConfig.VERSION_NAME}\nIcons by Lucide · ISC License", color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
 }
 
 @Preview(showBackground = true, widthDp = 390, heightDp = 844)

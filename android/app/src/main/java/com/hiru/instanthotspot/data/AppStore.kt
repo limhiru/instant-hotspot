@@ -27,6 +27,9 @@ class AppStore(context: Context) {
     var onboardingDone: Boolean
         get() = prefs.getBoolean("onboarded", false)
         set(value) { prefs.edit().putBoolean("onboarded", value).apply() }
+    var routineEnabled: Boolean
+        get() = prefs.getBoolean("routine_enabled", false)
+        set(value) { prefs.edit().putBoolean("routine_enabled", value).apply() }
 
     private fun vaultKey(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
