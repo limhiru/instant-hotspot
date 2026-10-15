@@ -22,7 +22,7 @@
 
 ```bash
 cd android
-./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+./gradlew :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest :app:lintDebug :app:lintRelease
 ```
 
 Swift + SwiftUI 기반 iOS 앱은 추후 별도 구현 예정입니다.
