@@ -1,14 +1,11 @@
 package com.hiru.instanthotspot.ble
 
 import android.app.*
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
 import com.hiru.instanthotspot.HotspotApplication
 import com.hiru.instanthotspot.MainActivity
 import com.hiru.instanthotspot.R
@@ -19,12 +16,11 @@ class ProviderService : Service() {
         super.onCreate()
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel("waiting", "기기 요청 대기", NotificationManager.IMPORTANCE_LOW))
-        manager.createNotificationChannel(NotificationChannel("requests", "핫스팟 연결 요청", NotificationManager.IMPORTANCE_DEFAULT))
+        RequestNotifications.createChannel(this)
         engine.onIncomingRequest = { name ->
-            if (Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-                try {
-                    NotificationManagerCompat.from(this).notify(102, notification("requests", "핫스팟 연결 요청", "$name: 폰에서 핫스팟을 켜 주세요.").build())
-                } catch (_: SecurityException) { /* Revocation does not interrupt in-app request delivery. */ }
+            val routine = (application as HotspotApplication).store.routineEnabled
+            if (!RequestNotifications.post(this, name, routine) && routine) {
+                engine.message("루틴 연결에 필요한 요청 알림이 차단돼 있어요. 설정에서 알림을 허용하거나 핫스팟을 직접 켜 주세요.")
             }
         }
         engine.onProviderFailure = { stopSelf() }
@@ -54,7 +50,7 @@ class ProviderService : Service() {
     override fun onDestroy() {
         engine.onIncomingRequest = null; engine.onProviderFailure = null
         engine.stopProvider()
-        getSystemService(NotificationManager::class.java).cancel(102)
+        RequestNotifications.cancel(this)
         super.onDestroy()
     }
     override fun onBind(intent: Intent?): IBinder? = null
